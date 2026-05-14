@@ -1,0 +1,14 @@
+{
+    "name": "cleanconvert/cleanconvert-wp",
+    "description": "CleanConvert WordPress Plugin",
+    "type": "wordpress-plugin",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Prinno Technologies"
+        }
+    ],
+    "require": {
+        "yahnis-elsts/plugin-update-checker": "^5.6"
+    }
+}
