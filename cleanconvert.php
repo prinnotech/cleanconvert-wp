@@ -11,7 +11,7 @@
 
 defined('ABSPATH') || exit;
 
-define('CLEANCONVERT_VERSION',    '1.0.0');
+define('CLEANCONVERT_VERSION',    '1.0.5');
 define('CLEANCONVERT_OPTION_KEY', 'cleanconvert_settings');
 
 require_once plugin_dir_path(__FILE__) . 'vendor/autoload.php';
