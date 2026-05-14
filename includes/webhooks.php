@@ -21,7 +21,7 @@ function cleanconvert_webhook_token(): string
 function cleanconvert_webhook_map(): array
 {
     return [
-        'order.created'    => 'purchase',
+        'action.woocommerce_payment_complete' => 'purchase',
         'action.woocommerce_add_to_cart' => 'addToCart',
         'action.woocommerce_checkout_order_created' => 'initiateCheckout',
     ];
@@ -48,7 +48,7 @@ function cleanconvert_register_webhooks(): void
         $webhook->set_delivery_url($delivery_url);
         $webhook->set_secret($token);
         $webhook->set_status('active');
-        $webhook->set_api_version('wp_api_v3');
+        $webhook->set_api_version('wp_api_v2');
         $webhook->save();
     }
 }
