@@ -9,4 +9,4 @@ $updateChecker = PucFactory::buildUpdateChecker(
     'cleanconvert'
 );
 
-$updateChecker->setBranch('main');
+$updateChecker->setBranch('master');
