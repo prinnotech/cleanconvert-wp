@@ -128,11 +128,22 @@ function cleanconvert_enqueue_pixel(): void
         if ($order && $order->key_is_valid($order_key)) {
             $order_data = [
                 'order_id'   => $order_id,
-                'total'      => $order->get_total(),
-                'currency'   => $order->get_currency(),
-                'email'      => $order->get_billing_email(),
-                'first_name' => $order->get_billing_first_name(),
-                'last_name'  => $order->get_billing_last_name(),
+                'total'      => $order_obj->get_total(),
+                'currency'   => $order_obj->get_currency(),
+                'email'      => $order_obj->get_billing_email(),
+                'first_name' => $order_obj->get_billing_first_name(),
+                'last_name'  => $order_obj->get_billing_last_name(),
+                'phone'      => $order_obj->get_billing_phone(),
+                'city'       => $order_obj->get_billing_city(),
+                'state'      => $order_obj->get_billing_state(),
+                'zip'        => $order_obj->get_billing_postcode(),
+                'country'    => $order_obj->get_billing_country(),
+                'items'      => array_values(array_map(fn($item) => [
+                    'product_id'   => $item->get_product_id(),
+                    'product_name' => $item->get_name(),
+                    'quantity'     => $item->get_quantity(),
+                    'total'        => $item->get_total(),
+                ], $order_obj->get_items())),
             ];
         }
     }
