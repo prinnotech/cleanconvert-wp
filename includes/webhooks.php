@@ -1,29 +1,34 @@
 <?php
 defined('ABSPATH') || exit;
 
-function cleanconvert_get_settings(): array {
+function cleanconvert_get_settings(): array
+{
     return get_option(CLEANCONVERT_OPTION_KEY, []);
 }
 
-function cleanconvert_ingest_base(): string {
+function cleanconvert_ingest_base(): string
+{
     $settings = cleanconvert_get_settings();
     return rtrim($settings['ingest_url'] ?? 'https://cleanconvert-backend-production.up.railway.app', '/');
 }
 
-function cleanconvert_webhook_token(): string {
+function cleanconvert_webhook_token(): string
+{
     $settings = cleanconvert_get_settings();
     return $settings['webhook_token'] ?? '';
 }
 
-function cleanconvert_webhook_map(): array {
+function cleanconvert_webhook_map(): array
+{
     return [
         'order.created'    => 'purchase',
-        'checkout.created' => 'initiateCheckout',
-        'cart.created'     => 'addToCart',
+        'action.woocommerce_add_to_cart' => 'addToCart',
+        'action.woocommerce_checkout_order_created' => 'initiateCheckout',
     ];
 }
 
-function cleanconvert_register_webhooks(): void {
+function cleanconvert_register_webhooks(): void
+{
     if (!class_exists('WC_Webhook')) return;
 
     $token = cleanconvert_webhook_token();
@@ -48,7 +53,8 @@ function cleanconvert_register_webhooks(): void {
     }
 }
 
-function cleanconvert_delete_webhooks(): void {
+function cleanconvert_delete_webhooks(): void
+{
     if (!class_exists('WC_Webhook')) return;
 
     $base = cleanconvert_ingest_base();
@@ -64,15 +70,23 @@ function cleanconvert_delete_webhooks(): void {
     }
 }
 
-function cleanconvert_webhook_exists(string $delivery_url): bool {
+function cleanconvert_webhook_exists(string $delivery_url): bool
+{
     return (bool) cleanconvert_find_webhook_id($delivery_url);
 }
 
-function cleanconvert_find_webhook_id(string $delivery_url): ?int {
+function cleanconvert_find_webhook_id(string $delivery_url): ?int
+{
     global $wpdb;
     $table = $wpdb->prefix . 'wc_webhooks';
     $id    = $wpdb->get_var(
         $wpdb->prepare("SELECT webhook_id FROM {$table} WHERE delivery_url = %s LIMIT 1", $delivery_url)
     );
     return $id ? (int) $id : null;
+}
+
+add_action('woocommerce_new_order', 'cleanconvert_debug_order', 10, 1);
+
+function cleanconvert_debug_order($order_id): void {
+    error_log('CleanConvert debug: new order ' . $order_id);
 }
