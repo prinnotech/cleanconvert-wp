@@ -4,6 +4,8 @@ defined('ABSPATH') || exit;
 add_action('admin_menu', 'cleanconvert_add_menu');
 add_action('admin_init', 'cleanconvert_register_settings');
 add_action('update_option_' . CLEANCONVERT_OPTION_KEY, 'cleanconvert_on_settings_save', 10, 2);
+// The very first save creates the option, which fires add_option_*, not update_option_*.
+add_action('add_option_' . CLEANCONVERT_OPTION_KEY, 'cleanconvert_on_settings_added', 10, 2);
 add_action('wp_enqueue_scripts', 'cleanconvert_enqueue_pixel');
 
 function cleanconvert_add_menu(): void
@@ -19,7 +21,22 @@ function cleanconvert_add_menu(): void
 
 function cleanconvert_register_settings(): void
 {
-    register_setting('cleanconvert_group', CLEANCONVERT_OPTION_KEY);
+    register_setting('cleanconvert_group', CLEANCONVERT_OPTION_KEY, [
+        'type'              => 'array',
+        'sanitize_callback' => 'cleanconvert_sanitize_settings',
+    ]);
+}
+
+// The token is a UUID from the CleanConvert dashboard; anything else is stripped.
+function cleanconvert_sanitize_settings($input): array
+{
+    $input = is_array($input) ? $input : [];
+    $clean = ['webhook_token' => preg_replace('/[^A-Za-z0-9-]/', '', (string) ($input['webhook_token'] ?? ''))];
+
+    $ingest = isset($input['ingest_url']) ? esc_url_raw((string) $input['ingest_url']) : '';
+    if ($ingest && str_starts_with($ingest, 'https://')) $clean['ingest_url'] = $ingest;
+
+    return $clean;
 }
 
 function cleanconvert_settings_page(): void
@@ -98,13 +115,20 @@ function cleanconvert_render_webhook_status(): void
     echo '</tbody></table>';
 }
 
-function cleanconvert_on_settings_save(array $old, array $new): void
+function cleanconvert_on_settings_save($old, $new): void
 {
-    $old_token = $old['webhook_token'] ?? '';
-    $new_token = $new['webhook_token'] ?? '';
+    $old_token = is_array($old) ? ($old['webhook_token'] ?? '') : '';
+    $new_token = is_array($new) ? ($new['webhook_token'] ?? '') : '';
 
     if ($old_token !== $new_token) {
         cleanconvert_delete_webhooks();
+        cleanconvert_register_webhooks();
+    }
+}
+
+function cleanconvert_on_settings_added($option, $value): void
+{
+    if (is_array($value) && !empty($value['webhook_token'])) {
         cleanconvert_register_webhooks();
     }
 }
@@ -119,35 +143,9 @@ function cleanconvert_enqueue_pixel(): void
 
     if (empty($token)) return;
 
-    $order_data = null;
-    if (is_wc_endpoint_url('order-received')) {
-        global $wp;
-        $order_id  = absint($wp->query_vars['order-received'] ?? 0);
-        $order_key = sanitize_text_field($_GET['key'] ?? '');
-        $order     = wc_get_order($order_id);
-        if ($order && $order->key_is_valid($order_key)) {
-            $order_data = [
-                'order_id'   => $order_id,
-                'total'      => $order_obj->get_total(),
-                'currency'   => $order_obj->get_currency(),
-                'email'      => $order_obj->get_billing_email(),
-                'first_name' => $order_obj->get_billing_first_name(),
-                'last_name'  => $order_obj->get_billing_last_name(),
-                'phone'      => $order_obj->get_billing_phone(),
-                'city'       => $order_obj->get_billing_city(),
-                'state'      => $order_obj->get_billing_state(),
-                'zip'        => $order_obj->get_billing_postcode(),
-                'country'    => $order_obj->get_billing_country(),
-                'items'      => array_values(array_map(fn($item) => [
-                    'product_id'   => $item->get_product_id(),
-                    'product_name' => $item->get_name(),
-                    'quantity'     => $item->get_quantity(),
-                    'total'        => $item->get_total(),
-                ], $order_obj->get_items())),
-            ];
-        }
-    }
-
+    // Purchases are sent by the server webhook (webhooks.php), once per paid order. The thank-you
+    // page no longer sends its own copy: that double-counted every order, and the code that built
+    // it crashed the page (it read an undefined $order_obj).
     wp_enqueue_script(
         'cleanconvert-pixel',
         plugin_dir_url(dirname(__FILE__)) . 'includes/pixel.js',
@@ -160,7 +158,5 @@ function cleanconvert_enqueue_pixel(): void
         'backend_url'       => $base,
         'token'             => $token,
         'is_checkout'       => is_checkout() && !is_wc_endpoint_url('order-received'),
-        'is_order_received' => is_wc_endpoint_url('order-received'),
-        'order'             => $order_data,
     ]);
 }

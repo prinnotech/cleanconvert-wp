@@ -11,27 +11,49 @@
         "ref", "irclickid", "clickid"
     ];
 
-    // 1. Capture URL params into localStorage
+    const PARAMS_COOKIE_DAYS = 90;
+
+    function readStored() {
+        try {
+            return JSON.parse(localStorage.getItem('cc_params') || '{}');
+        } catch (e) {
+            return {}; // corrupted entry: start fresh
+        }
+    }
+
+    // 1. Capture URL params into localStorage, and mirror them in a first-party cookie so the
+    //    plugin can save them on the order at checkout (the purchase is sent from the server).
     function captureParams() {
         const params = new URLSearchParams(window.location.search);
-        const stored = JSON.parse(localStorage.getItem('cc_params') || '{}');
+        const stored = readStored();
         ALL_PARAMS.forEach(key => {
             if (params.has(key)) stored[key] = params.get(key);
         });
         localStorage.setItem('cc_params', JSON.stringify(stored));
+        document.cookie = 'cc_params=' + encodeURIComponent(JSON.stringify(stored)) +
+            '; path=/; max-age=' + (PARAMS_COOKIE_DAYS * 86400) + '; SameSite=Lax' +
+            (location.protocol === 'https:' ? '; Secure' : '');
     }
 
     // 2. Get stored params
     function getStoredParams() {
-        return JSON.parse(localStorage.getItem('cc_params') || '{}');
+        return readStored();
     }
 
-    // 3. Build base event data
+    function readCookie(name) {
+        const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+        return match ? decodeURIComponent(match[1]) : undefined;
+    }
+
+    // 3. Build base event data. _fbp/_fbc are the Meta pixel's own cookies when the shop runs it;
+    //    sending them raises match quality in Meta.
     function getBaseData() {
         return {
             url: window.location.href,
             referrer: document.referrer,
             user_agent: navigator.userAgent,
+            fbp: readCookie('_fbp'),
+            fbc: readCookie('_fbc'),
             ...getStoredParams()
         };
     }
@@ -63,10 +85,7 @@
         });
     }
 
-    // purchase — on order received page
-    if (cleanconvert_vars.is_order_received && cleanconvert_vars.order) {
-        sendEvent('purchase', cleanconvert_vars.order);
-    }
+    // purchase is sent by the server webhook once the order is paid (see includes/webhooks.php).
 
     // addToCart — hook into WooCommerce AJAX
     document.addEventListener('click', function (e) {
